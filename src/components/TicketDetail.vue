@@ -2,7 +2,7 @@
   <div class="ticket-detail p-4">
     <div class="flex-between mb-4 border-b">
       <h3 class="ticket-title">
-        <span class="id-tag">{{ ticket.id }}</span> 
+        <span class="id-tag">{{ ticket.codigo || ticket.id }}</span> 
         {{ ticket.title }}
       </h3>
       <button @click="$emit('close')" class="btn-close">
@@ -77,27 +77,28 @@ export default {
   },
   data() {
     return {
-      localStatus: this.ticket.status
+      localStatus: this.ticket.status,
+      updating: false
     }
   },
   methods: {
     formatDate(date) {
       return new Date(date).toLocaleString('es-CO');
     },
-    handleStatusChange() {
-      const updatedTicket = {
-        ...this.ticket,
-        status: this.localStatus,
-        logs: [
-          ...this.ticket.logs,
-          {
-            state: this.localStatus,
-            timestamp: new Date().toISOString(),
-            user: this.$store.state.user.name
-          }
-        ]
-      };
-      this.$store.commit('UPDATE_TICKET', updatedTicket);
+    async handleStatusChange() {
+      this.updating = true;
+      try {
+        await this.$store.dispatch('changeTicketStatus', {
+          id: this.ticket.id,
+          status: this.localStatus
+        });
+      } catch (e) {
+        // Revertir si el backend rechaza la transición
+        alert(e.response?.data?.message || 'Error al cambiar estado');
+        this.localStatus = this.ticket.status;
+      } finally {
+        this.updating = false;
+      }
     }
   }
 }

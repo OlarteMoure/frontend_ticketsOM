@@ -1,203 +1,143 @@
 <template>
-  <div class="login-page">
-    <div class="login-card glass animate-fade">
-      <div class="logo-section">
-        <div class="logo-box">
-          <i class="fas fa-bolt"></i>
-        </div>
-        <h1>Tickets<span>OM</span></h1>
-        <p>Plataforma Interna de Gestión</p>
-      </div>
-
-      <div class="sso-section">
-        <label class="sso-label">Acceso Institucional</label>
-        <button @click="handleLogin('admin@firma.com')" :disabled="loading" class="btn-sso microsoft">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="MS Logo" class="sso-icon">
-          <span>{{ loading ? 'Conectando...' : 'Iniciar sesión con Microsoft' }}</span>
-        </button>
-        
-        <div class="divider">
-          <span>o usar cuenta de prueba</span>
-        </div>
-
-        <div class="test-accounts">
-          <button @click="handleLogin('gestor@firma.com')" class="btn-test">
-            <i class="fas fa-user-shield"></i> Gestor
-          </button>
-          <button @click="handleLogin('user@firma.com')" class="btn-test">
-            <i class="fas fa-user"></i> Usuario
-          </button>
-        </div>
-      </div>
-
-      <footer class="login-footer">
-        <p>&copy; 2026 Organización Moderna S.A.</p>
-      </footer>
+  <div class="overlay login-container">
+    <div v-if="loading" class="loading-overlay">
+      <div class="spinner"></div>
     </div>
+    <div class="login-panel">
+      <div class="panel">
+        <h1 class="login-title">TicketsOM</h1>
+        <p class="login-subtitle">Plataforma Interna de Gestión</p>
+        <button class="btn-login" @click="loginWithAzure">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft" style="width: 20px; margin-right: 10px;">
+          <span>Iniciar sesión con Microsoft</span>
+        </button>
+      </div>
+      <small class="footer-text">
+        © 2026 Organización Moderna S.A.
+      </small>
+    </div> 
   </div>
 </template>
 
 <script>
+import { InteractionRequiredAuthError } from '@azure/msal-browser';
+import axios from 'axios';
+
 export default {
   name: 'Login',
   data() {
     return {
       loading: false
-    }
+    };
   },
   methods: {
-    handleLogin(email) {
-      this.loading = true;
-      // Simulamos autenticación de Microsoft
-      setTimeout(() => {
-        this.$store.dispatch('login', email);
-        this.$router.push({ name: 'reports' });
+    async loginWithAzure() {
+      const loginRequest = { scopes: ["User.Read"] };
+      try {
+        this.loading = true;
+        // Inicia login con popup (Patman usa popup por defecto en su componente)
+        const loginResponse = await this.$msal.loginPopup(loginRequest);
+        
+        if (loginResponse && loginResponse.account) {
+          this.$msal.setActiveAccount(loginResponse.account);
+        }
+
+        const account = this.$msal.getActiveAccount() || (this.$msal.getAllAccounts()[0] || null);
+        if (!account) throw new Error('No se pudo obtener cuenta');
+
+        let tokenResponse;
+        try {
+          tokenResponse = await this.$msal.acquireTokenSilent({
+            account,
+            scopes: loginRequest.scopes
+          });
+        } catch (err) {
+          if (err instanceof InteractionRequiredAuthError) {
+            tokenResponse = await this.$msal.acquireTokenPopup({
+              account,
+              scopes: loginRequest.scopes
+            });
+          } else {
+            throw err;
+          }
+        }
+
+        const accessToken = tokenResponse && tokenResponse.accessToken;
+        const email = loginResponse.account.username;
+
+        // Autenticación contra backend local (Endpoint Patman)
+        const response = await axios.post(process.env.VUE_APP_BACKEND_URL + 'auth/authMicrosoft', {
+          email: email,
+          access_token: accessToken
+        });
+
+        const data = response.data;
+        
+        // Guardar tokens y datos en el store (Simulando lo que hace patman)
+        localStorage.setItem("jwt_token", data.jwt);
+        localStorage.setItem("refresh_token", data.refresh_token);
+        
+        const entity = data.consulta[0].id_netsuite;
+        const company = "6959048"; // Valor por defecto en patman
+
+        // Obtener info detallada del usuario
+        const userInfoRes = await axios.get(`${process.env.VUE_APP_BACKEND_URL}auth/userInfo/${entity}/${company}`, {
+          headers: { 'Authorization': `Bearer ${data.jwt}` }
+        });
+
+        const userData = userInfoRes.data;
+        this.$store.commit('SET_USER', userData);
+        
+        this.$router.push("/home");
+
+      } catch (error) {
+        console.error('Error en login:', error);
+        alert("Error al autenticar el usuario");
+      } finally {
         this.loading = false;
-      }, 1000);
+      }
     }
   }
-}
+};
 </script>
 
 <style scoped>
-.login-page {
-  height: 100vh;
+.login-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f4f7fa;
-  background-image: radial-gradient(#003162 0.5px, transparent 0.5px);
-  background-size: 30px 30px;
+  height: 100vh;
+  background: #f4f7f6;
 }
-
-.login-card {
-  width: 100%;
-  max-width: 400px;
+.login-panel {
+  background: white;
   padding: 40px;
-  background: #ffffff;
-  box-shadow: 0 20px 40px rgba(0, 49, 98, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
   text-align: center;
 }
-
-.logo-box {
-  width: 60px;
-  height: 60px;
-  background: var(--primary);
-  color: #fff;
-  border-radius: 12px;
+.login-title { color: #2c3e50; margin-bottom: 5px; }
+.login-subtitle { color: #7f8c8d; margin-bottom: 30px; }
+.btn-login {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.8rem;
-  margin: 0 auto 15px;
-}
-
-.logo-section h1 {
-  font-size: 1.8rem;
-  color: var(--text-main);
-  margin-bottom: 5px;
-  font-weight: 800;
-}
-
-.logo-section span {
-  color: var(--primary);
-}
-
-.logo-section p {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  margin-bottom: 35px;
-}
-
-.sso-label {
-  display: block;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-  margin-bottom: 15px;
-  font-weight: 700;
-}
-
-.btn-sso {
-  width: 100%;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  border: 1px solid #d1d9e6;
-  background: #fff;
-  border-radius: 8px;
+  padding: 12px 24px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.2s;
-  color: #5e5e5e;
+  width: 100%;
 }
-
-.btn-sso:hover {
-  background: #f8fafc;
-  border-color: #003162;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+.btn-login:hover { background: #f9f9f9; }
+.loading-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; z-index: 100;
 }
-
-.sso-icon {
-  width: 20px;
+.spinner {
+  border: 4px solid #f3f3f3; border-top: 4px solid #3498db;
+  border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;
 }
-
-.divider {
-  margin: 25px 0;
-  position: relative;
-  text-align: center;
-}
-
-.divider::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: #e2e8f0;
-}
-
-.divider span {
-  position: relative;
-  background: #fff;
-  padding: 0 10px;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.test-accounts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-
-.btn-test {
-  padding: 10px;
-  background: #f7fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  color: var(--text-main);
-  transition: 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.btn-test:hover {
-  background: #e2e8f0;
-  color: var(--primary);
-}
-
-.login-footer {
-  margin-top: 40px;
-  font-size: 0.75rem;
-  color: #a0aec0;
-}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 </style>

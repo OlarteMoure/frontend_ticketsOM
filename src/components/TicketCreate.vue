@@ -10,6 +10,17 @@
             <input type="text" v-model="form.title" class="form-control" placeholder="Resumen corto de la solicitud">
           </div>
 
+          <!-- Selector de Solicitante (solo para Admin o Gestor) -->
+          <div class="form-group" v-if="isAdmin || isGestor">
+            <label>Solicitante (Opcional - Crear a nombre de otro usuario)</label>
+            <select v-model="form.solicitanteId" class="form-control">
+              <option value="">Yo</option>
+              <option v-for="user in users" :key="user.id" :value="user.id">
+                {{ user.name }} ({{ user.email }}) - {{ user.role }}
+              </option>
+            </select>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label>Área de Destino *</label>
@@ -75,7 +86,7 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { mapState, mapGetters } from 'vuex';
 
 export default {
   name: 'TicketCreate',
@@ -85,14 +96,16 @@ export default {
         title: '',
         areaId: '',
         subjectId: '',
-        description: ''
+        description: '',
+        solicitanteId: ''
       },
       showSuccess: false,
       lastId: null
     }
   },
   computed: {
-    ...mapState(['areas', 'subjects']),
+    ...mapState(['areas', 'subjects', 'users']),
+    ...mapGetters(['isAdmin', 'isGestor']),
     filteredSubjects() {
       return this.subjects.filter(s => s.areaId === this.form.areaId);
     },
@@ -103,18 +116,29 @@ export default {
       return this.form.title && this.form.subjectId && this.form.description;
     }
   },
+  async mounted() {
+    if (this.isAdmin || this.isGestor) {
+      await this.$store.dispatch('fetchUsers');
+    }
+  },
   methods: {
     onAreaChange() {
       this.form.subjectId = '';
     },
     async save() {
-      const res = await this.$store.dispatch('createTicket', {
+      const payload = {
         title: this.form.title,
         areaId: this.form.areaId,
         subjectId: this.form.subjectId,
         description: this.form.description
-      });
-      this.lastId = res.id;
+      };
+      
+      if ((this.isAdmin || this.isGestor) && this.form.solicitanteId) {
+        payload.solicitanteId = this.form.solicitanteId;
+      }
+
+      const res = await this.$store.dispatch('createTicket', payload);
+      this.lastId = res.codigo || res.id;
       this.showSuccess = true;
     }
   }
@@ -137,4 +161,9 @@ export default {
 .info-item { margin-bottom: 15px; }
 .info-item label { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); }
 .info-item p { font-weight: 600; color: var(--text-main); }
+
+@media (max-width: 600px) {
+  .form-row { flex-direction: column; gap: 0; }
+  .col-side { width: 100%; }
+}
 </style>

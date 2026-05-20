@@ -1,12 +1,21 @@
 <template>
   <div class="app-layout">
-    <TheSidebar />
+    <!-- Overlay para móvil -->
+    <div class="sidebar-backdrop" v-if="sidebarOpen" @click="sidebarOpen = false"></div>
+
+    <TheSidebar :is-open="sidebarOpen" @close="sidebarOpen = false" />
+    
     <main class="main-content">
       <header class="top-nav">
-        <div class="breadcrumb">
-          <span class="root">App</span>
-          <i class="fas fa-chevron-right separator"></i>
-          <span class="current">{{ currentRouteName }}</span>
+        <div class="header-left">
+          <button class="mobile-menu-btn" @click="sidebarOpen = true">
+            <i class="fas fa-bars"></i>
+          </button>
+          <div class="breadcrumb">
+            <span class="root">App</span>
+            <i class="fas fa-chevron-right separator"></i>
+            <span class="current">{{ currentRouteName }}</span>
+          </div>
         </div>
         <div class="profile-actions">
           <div class="notification-trigger">
@@ -15,10 +24,13 @@
           </div>
           <div class="user-badge">
             <div class="user-text">
-              <span class="u-name">{{ user.name }}</span>
-              <span class="u-role">{{ user.role }}</span>
+              <span class="u-name">{{ userData ? userData.name : '' }}</span>
+              <span class="u-role">{{ userData ? userData.role : '' }}</span>
             </div>
-            <div class="u-avatar">{{ initials }}</div>
+            <div v-if="userPhoto" class="u-avatar u-avatar-img">
+              <img :src="userPhoto" alt="Avatar" />
+            </div>
+            <div v-else class="u-avatar">{{ initials }}</div>
           </div>
         </div>
       </header>
@@ -39,20 +51,30 @@ import TheSidebar from '../components/TheSidebar.vue';
 export default {
   name: 'DashboardView',
   components: { TheSidebar },
+  data() {
+    return {
+      sidebarOpen: false
+    };
+  },
   computed: {
-    ...mapState(['user']),
+    ...mapState(['userData', 'userPhoto']),
     initials() {
-      return this.user ? this.user.name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
+      return this.userData && this.userData.name ? this.userData.name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
     },
     currentRouteName() {
       const names = {
         'create': 'Nuevo Requerimiento',
         'config': 'Parametrización',
         'reports': 'Mis Requerimientos',
-        'advanced-reports': 'Reportes Globales'
+        'advanced-reports': 'Reportes Globales',
+        'statistics': 'Estadísticas'
       };
       return names[this.$route.name] || 'Inicio';
     }
+  },
+  async mounted() {
+    await this.$store.dispatch('fetchAreas');
+    await this.$store.dispatch('fetchSubjects');
   }
 }
 </script>
@@ -80,6 +102,21 @@ export default {
   align-items: center;
   border-bottom: 1px solid var(--border-color);
   background: #ffffff;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-main);
+  cursor: pointer;
 }
 
 .breadcrumb {
@@ -165,6 +202,18 @@ export default {
   box-shadow: 0 2px 8px rgba(0, 49, 98, 0.2);
 }
 
+.u-avatar-img {
+  background: transparent;
+  padding: 0;
+  overflow: hidden;
+}
+
+.u-avatar-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .view-container {
   flex: 1;
   padding: 30px;
@@ -183,5 +232,44 @@ export default {
 .page-fade-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* RESPONSIVE QUERIES */
+@media (max-width: 768px) {
+  .top-nav {
+    padding: 0 15px;
+  }
+  
+  .mobile-menu-btn {
+    display: block;
+  }
+  
+  .breadcrumb .root, .breadcrumb .separator {
+    display: none;
+  }
+  
+  .sidebar-backdrop {
+    display: block;
+  }
+  
+  .profile-actions {
+    gap: 15px;
+  }
+  
+  .user-text {
+    display: none;
+  }
+  
+  .view-container {
+    padding: 15px;
+  }
 }
 </style>

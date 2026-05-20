@@ -46,17 +46,19 @@
               <th>Título</th>
               <th>Área</th>
               <th>Tipo</th>
+              <th>Solicitante</th>
               <th>Responsable</th>
               <th>Estado</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="ticket in filteredTickets" :key="ticket.id">
-              <td class="id-cell">{{ ticket.id }}</td>
+              <td class="id-cell">{{ ticket.codigo || ticket.id }}</td>
               <td>{{ formatDate(ticket.createdAt) }}</td>
               <td class="title-cell">{{ ticket.title }}</td>
-              <td>{{ getAreaName(ticket.areaId) }}</td>
+              <td>{{ ticket.areaName || getAreaName(ticket.areaId) }}</td>
               <td>{{ ticket.subjectName }}</td>
+              <td>{{ ticket.createdBy }}</td>
               <td>{{ ticket.responsible }}</td>
               <td>
                 <span :class="['badge', getStatusClass(ticket.status)]">
@@ -65,7 +67,7 @@
               </td>
             </tr>
             <tr v-if="filteredTickets.length === 0">
-              <td colspan="7" class="empty-state">No hay resultados para los criterios seleccionados.</td>
+              <td colspan="8" class="empty-state">No hay resultados para los criterios seleccionados.</td>
             </tr>
           </tbody>
         </table>
@@ -76,6 +78,7 @@
 
 <script>
 import { mapState } from 'vuex';
+import api from '../services/api';
 
 export default {
   name: 'AdvancedReports',
@@ -86,30 +89,42 @@ export default {
         to: '',
         areaId: '',
         subjectId: ''
-      }
+      },
+      reportTickets: [],
+      loading: false
     }
   },
   computed: {
-    ...mapState(['tickets', 'areas', 'subjects']),
+    ...mapState(['areas', 'subjects']),
     filteredSubjects() {
       if (!this.filters.areaId) return [];
       return this.subjects.filter(s => s.areaId === this.filters.areaId);
     },
     filteredTickets() {
-      return this.tickets.filter(t => {
-        let match = true;
-        const ticketDate = new Date(t.createdAt).toISOString().split('T')[0];
-        
-        if (this.filters.from && ticketDate < this.filters.from) match = false;
-        if (this.filters.to && ticketDate > this.filters.to) match = false;
-        if (this.filters.areaId && t.areaId !== this.filters.areaId) match = false;
-        if (this.filters.subjectId && t.subjectId !== this.filters.subjectId) match = false;
-        
-        return match;
-      });
+      return this.reportTickets;
     }
   },
+  async mounted() {
+    await this.loadReport();
+  },
   methods: {
+    async loadReport() {
+      this.loading = true;
+      try {
+        const params = {};
+        if (this.filters.from) params.from = this.filters.from;
+        if (this.filters.to) params.to = this.filters.to;
+        if (this.filters.areaId) params.areaId = this.filters.areaId;
+        if (this.filters.subjectId) params.subjectId = this.filters.subjectId;
+
+        const res = await api.get('/reports/tickets', { params });
+        this.reportTickets = (res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+      } catch (e) {
+        console.error('Error cargando reporte:', e);
+      } finally {
+        this.loading = false;
+      }
+    },
     formatDate(date) {
       return new Date(date).toLocaleDateString('es-CO');
     },
@@ -128,38 +143,45 @@ export default {
     },
     resetFilters() {
       this.filters = { from: '', to: '', areaId: '', subjectId: '' };
+      this.loadReport();
     },
     exportToCSV() {
-      const rows = [
-        ['ID', 'Fecha', 'Titulo', 'Area', 'Tipo', 'Responsable', 'Estado']
-      ];
+      const params = new URLSearchParams();
+      if (this.filters.from) params.append('from', this.filters.from);
+      if (this.filters.to) params.append('to', this.filters.to);
+      if (this.filters.areaId) params.append('areaId', this.filters.areaId);
+      if (this.filters.subjectId) params.append('subjectId', this.filters.subjectId);
 
-      this.filteredTickets.forEach(t => {
-        rows.push([
-          t.id,
-          this.formatDate(t.createdAt),
-          t.title.replace(/,/g, ''),
-          this.getAreaName(t.areaId),
-          t.subjectName,
-          t.responsible,
-          t.status
-        ]);
-      });
+      const token = localStorage.getItem('jwt_token');
+      const baseUrl = process.env.VUE_APP_API_URL || '/api';
+      const url = `${baseUrl}/reports/export/csv?${params.toString()}`;
 
-      const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(",")).join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `reporte_tickets_${new Date().getTime()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Descargar con JWT en header usando fetch
+      fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(resp => resp.blob())
+      .then(blob => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `reporte_tickets_${Date.now()}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      })
+      .catch(e => console.error('Error exportando CSV:', e));
     }
+  },
+  watch: {
+    'filters.from'() { this.loadReport(); },
+    'filters.to'() { this.loadReport(); },
+    'filters.areaId'() { this.filters.subjectId = ''; this.loadReport(); },
+    'filters.subjectId'() { this.loadReport(); }
   }
 }
 </script>
 
 <style scoped>
+.flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
 .bg-light-panel { background: #f8fafc !important; }
 .filters-grid {
   display: grid;

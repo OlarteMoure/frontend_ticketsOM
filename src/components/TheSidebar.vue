@@ -1,10 +1,10 @@
 <template>
-  <aside class="sidebar">
+  <aside :class="['sidebar', { 'is-open': isOpen }]">
     <div class="brand">
       <div class="logo">
         <i class="fas fa-bolt"></i>
       </div>
-      <h2>Tickets<span>OM</span></h2>
+      <h2>#SoyFanOM</h2>
     </div>
 
     <nav class="nav-menu">
@@ -53,8 +53,21 @@ import { mapGetters } from 'vuex';
 
 export default {
   name: 'TheSidebar',
+  props: {
+    isOpen: {
+      type: Boolean,
+      default: false
+    }
+  },
   computed: {
     ...mapGetters(['isAdmin', 'isGestor'])
+  },
+  watch: {
+    $route() {
+      if (this.isOpen) {
+        this.$emit('close');
+      }
+    }
   },
   methods: {
     logout() {
@@ -75,6 +88,22 @@ export default {
   background-color: #ffffff;
   border-right: 1px solid var(--border-color);
   box-shadow: 4px 0 10px rgba(0, 0, 0, 0.02);
+  z-index: 1000;
+  transition: transform 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+  }
+  
+  .sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+  }
 }
 
 .brand {
