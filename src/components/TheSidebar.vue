@@ -16,12 +16,22 @@
       
       <router-link :to="{ name: 'reports' }" class="nav-link">
         <i class="fas fa-list-ul"></i>
-        <span>Mis Tickets</span>
+        <span>Mis Requerimientos</span>
       </router-link>
 
       <div v-if="isAdmin || isGestor" class="admin-section">
         <div class="menu-label">Administración</div>
         
+        <router-link :to="{ name: 'assigned-tickets' }" class="nav-link">
+          <i class="fas fa-tasks"></i>
+          <span>Requerimientos Asignados</span>
+        </router-link>
+
+        <router-link v-if="isAdmin" :to="{ name: 'global-tickets' }" class="nav-link">
+          <i class="fas fa-globe"></i>
+          <span>Gestión Global</span>
+        </router-link>
+
         <router-link :to="{ name: 'statistics' }" class="nav-link">
           <i class="fas fa-chart-pie"></i>
           <span>Estadísticas</span>
@@ -29,7 +39,7 @@
 
         <router-link :to="{ name: 'advanced-reports' }" class="nav-link">
           <i class="fas fa-file-invoice-dollar"></i>
-          <span>Reportes Globales</span>
+          <span>Reportes Avanzados</span>
         </router-link>
 
         <router-link v-if="isAdmin" :to="{ name: 'config' }" class="nav-link">

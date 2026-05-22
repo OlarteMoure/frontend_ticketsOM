@@ -16,11 +16,35 @@ const routes = [
     component: () => import('../views/AuthCallback.vue')
   },
   {
+    path: '/sso',
+    name: 'sso-receiver',
+    component: () => import('../views/SsoReceiver.vue')
+  },
+  {
     path: '/',
     component: () => import('../views/Dashboard.vue'),
     redirect: '/home',
     children: [
-      { path: 'home', name: 'reports', component: () => import('../components/Reports.vue') },
+      { 
+        path: 'home', 
+        name: 'reports', 
+        component: () => import('../components/Reports.vue'),
+        props: { viewType: 'solicitante' }
+      },
+      { 
+        path: 'assigned', 
+        name: 'assigned-tickets', 
+        component: () => import('../components/Reports.vue'), 
+        props: { viewType: 'responsable' },
+        meta: { requiresRole: ['Administrador', 'Gestionador'] } 
+      },
+      { 
+        path: 'global', 
+        name: 'global-tickets', 
+        component: () => import('../components/Reports.vue'), 
+        props: { viewType: 'global' },
+        meta: { requiresRole: ['Administrador'] } 
+      },
       { path: 'create', name: 'create', component: () => import('../components/TicketCreate.vue') },
       {
         path: 'config',
@@ -54,8 +78,8 @@ router.beforeEach(async (to, from, next) => {
   const user = store.state.userData;
   const token = store.state.jwt_access_token;
 
-  // Permitir login y callback de MSAL sin autenticación
-  if (to.name === 'login' || to.name === 'auth-callback') {
+  // Permitir login, callback de MSAL y SSO sin autenticación
+  if (to.name === 'login' || to.name === 'auth-callback' || to.name === 'sso-receiver') {
     return next();
   }
 

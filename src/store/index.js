@@ -133,12 +133,26 @@ const store = new Vuex.Store({
       return data;
     },
     async createTicket({ dispatch }, payload) {
-      const res = await api.post('/tickets', payload);
+      const config = payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+      const res = await api.post('/tickets', payload, config);
       dispatch('fetchTickets');
       return (res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
     },
-    async changeTicketStatus({ dispatch }, { id, status }) {
-      const res = await api.patch(`/tickets/${id}/status`, { status });
+    async fetchTicketMessages(_, ticketId) {
+      const res = await api.get(`/tickets/${ticketId}/messages`);
+      return (res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+    },
+    async sendTicketMessage(_, { id, formData }) {
+      const res = await api.post(`/tickets/${id}/messages`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      return (res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+    },
+    async changeTicketStatus({ dispatch }, { id, status, observacion }) {
+      const res = await api.patch(`/tickets/${id}/status`, { status, observacion });
+      dispatch('fetchTickets');
+      return (res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+    },
+    async assignTicket({ dispatch }, { id, responsableId }) {
+      const res = await api.patch(`/tickets/${id}/assign`, { responsableId });
       dispatch('fetchTickets');
       return (res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
     },
@@ -152,7 +166,7 @@ const store = new Vuex.Store({
       }
     },
     async createArea({ dispatch }, name) {
-      await api.post('/areas', { name });
+      await api.post('/areas', { nombre: name });
       dispatch('fetchAreas');
     },
     async deleteArea({ dispatch }, id) {
@@ -187,6 +201,14 @@ const store = new Vuex.Store({
     },
     async updateUserRole({ dispatch }, { userId, role }) {
       await api.patch(`/users/${userId}/role`, null, { params: { role } });
+      dispatch('fetchUsers');
+    },
+    async updateUser({ dispatch }, user) {
+      await api.put(`/users/${user.id}`, user);
+      dispatch('fetchUsers');
+    },
+    async deleteUser({ dispatch }, userId) {
+      await api.delete(`/users/${userId}`);
       dispatch('fetchUsers');
     }
   },

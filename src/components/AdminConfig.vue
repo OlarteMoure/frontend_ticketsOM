@@ -121,7 +121,7 @@
               <th>Email</th>
               <th>Rol Actual</th>
               <th>Estado</th>
-              <th>Cambiar Rol</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -146,19 +146,51 @@
                 </span>
               </td>
               <td>
-                <select 
-                  :value="u.role" 
-                  @change="changeRole(u.id, $event.target.value)"
-                  class="form-control shadow-sm role-select"
-                >
-                  <option value="Administrador">Administrador</option>
-                  <option value="Gestionador">Gestionador</option>
-                  <option value="Básico">Básico</option>
-                </select>
+                <div class="action-buttons">
+                  <button @click="openEditUser(u)" class="btn-icon text-primary" title="Editar"><i class="fas fa-edit"></i></button>
+                  <button @click="deleteUser(u.id)" class="btn-icon text-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
+
+      </div>
+    </div>
+
+    <!-- User Edit Modal -->
+    <div v-if="showUserModal" class="modal-backdrop">
+      <div class="modal-content glass p-4" style="max-width: 400px; width: 100%;">
+        <h3 class="mb-4 text-primary">Editar Usuario</h3>
+        <div class="form-group mb-3">
+          <label>Nombre</label>
+          <input v-model="editingUser.name" class="form-control shadow-sm">
+        </div>
+        <div class="form-group mb-3">
+          <label>Email</label>
+          <input v-model="editingUser.email" class="form-control shadow-sm" type="email">
+        </div>
+        <div class="form-group mb-3">
+          <label>Rol</label>
+          <select v-model="editingUser.role" class="form-control shadow-sm">
+            <option value="Administrador">Administrador</option>
+            <option value="Gestionador">Gestionador</option>
+            <option value="Básico">Básico</option>
+          </select>
+        </div>
+        <div class="form-group mb-4">
+          <label>Estado</label>
+          <select v-model="editingUser.activo" class="form-control shadow-sm">
+            <option :value="true">Activo</option>
+            <option :value="false">Inactivo</option>
+          </select>
+        </div>
+        <div class="d-flex gap-2" style="justify-content: flex-end;">
+          <button @click="showUserModal = false" class="btn-secondary">Cancelar</button>
+          <button @click="saveUser" class="btn-primary" :disabled="savingUser">
+             <i class="fas fa-save" v-if="!savingUser"></i> <i class="fas fa-spinner fa-spin" v-else></i> Guardar
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -174,7 +206,10 @@ export default {
       activeTab: 'areas',
       newArea: '',
       newSub: { areaId: '', nombre: '', ansHoras: 24, tipoAns: 'CALENDARIO', responsableId: '' },
-      gestores: []
+      gestores: [],
+      showUserModal: false,
+      editingUser: {},
+      savingUser: false
     }
   },
   computed: {
@@ -231,6 +266,29 @@ export default {
       } catch (e) {
         alert(e.response?.data?.message || 'Error al cambiar el rol');
       }
+    },
+    openEditUser(user) {
+      this.editingUser = { ...user };
+      this.showUserModal = true;
+    },
+    async saveUser() {
+      this.savingUser = true;
+      try {
+        await this.$store.dispatch('updateUser', this.editingUser);
+        this.showUserModal = false;
+      } catch (e) {
+        alert(e.response?.data?.message || 'Error al actualizar usuario');
+      } finally {
+        this.savingUser = false;
+      }
+    },
+    async deleteUser(userId) {
+      if (!confirm('¿Estás seguro de eliminar este usuario?')) return;
+      try {
+        await this.$store.dispatch('deleteUser', userId);
+      } catch (e) {
+        alert(e.response?.data?.message || 'Error al eliminar usuario. Puede que tenga tickets asociados.');
+      }
     }
   }
 }
@@ -263,6 +321,11 @@ export default {
 .user-photo { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; }
 .user-photo img { width: 100%; height: 100%; object-fit: cover; }
 .user-initials { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.modal-content { background: #fff; border-radius: 12px; max-width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+.action-buttons { display: flex; gap: 15px; align-items: center; }
+.form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
 
 @media (max-width: 900px) {
   .grid-form-subjects { grid-template-columns: 1fr 1fr; }

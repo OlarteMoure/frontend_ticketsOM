@@ -2,7 +2,7 @@
   <div class="reports-page">
     <div class="glass p-4 mb-4">
       <div class="flex-between mb-4">
-        <h2><i class="fas fa-tasks mr-2 text-primary"></i> Mis Requerimientos</h2>
+        <h2><i class="fas fa-tasks mr-2 text-primary"></i> {{ pageTitle }}</h2>
         <div class="filters">
           <input 
             v-model="searchQuery" 
@@ -69,9 +69,15 @@
       </div>
 
       <!-- Paginación -->
-      <div v-if="pagination.totalPages > 1" class="pagination-bar">
-        <div class="pagination-info">
-          Mostrando {{ paginationStart }}-{{ paginationEnd }} de {{ pagination.totalElements }}
+      <div v-if="pagination.totalElements > 0" class="pagination-bar">
+        <div class="pagination-info d-flex align-items-center gap-3">
+          <span>Mostrando {{ paginationStart }}-{{ paginationEnd }} de {{ pagination.totalElements }}</span>
+          <select v-model="pageSize" @change="onPageSizeChange" class="form-control shadow-sm" style="width: 80px; padding: 4px 8px; font-size: 0.85rem; height: 32px;">
+            <option :value="10">10</option>
+            <option :value="20">20</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+          </select>
         </div>
         <div class="pagination-controls">
           <button 
@@ -98,15 +104,15 @@
           </button>
           <button 
             class="page-btn" 
-            :disabled="pagination.page >= pagination.totalPages - 1"
+            :disabled="pagination.page >= pagination.totalPages - 1 || pagination.totalPages === 0"
             @click="goToPage(pagination.page + 1)"
           >
             <i class="fas fa-angle-right"></i>
           </button>
           <button 
             class="page-btn" 
-            :disabled="pagination.page >= pagination.totalPages - 1"
-            @click="goToPage(pagination.totalPages - 1)"
+            :disabled="pagination.page >= pagination.totalPages - 1 || pagination.totalPages === 0"
+            @click="goToPage(pagination.totalPages > 0 ? pagination.totalPages - 1 : 0)"
           >
             <i class="fas fa-angle-double-right"></i>
           </button>
@@ -118,7 +124,7 @@
     <transition name="fade">
       <div v-if="selectedTicket" class="modal-backdrop" @click.self="selectedTicket = null">
         <div class="modal-box glass animate-scale">
-          <TicketDetail :ticket="selectedTicket" @close="selectedTicket = null" />
+          <TicketDetail :ticket="selectedTicket" :viewType="viewType" @close="selectedTicket = null" />
         </div>
       </div>
     </transition>
@@ -133,18 +139,30 @@ import TicketDetail from './TicketDetail.vue';
 export default {
   name: 'Reports',
   components: { Timer, TicketDetail },
+  props: {
+    viewType: {
+      type: String,
+      default: 'solicitante'
+    }
+  },
   data() {
     return {
       searchQuery: '',
       filterStatus: '',
       selectedTicket: null,
-      searchTimer: null
+      searchTimer: null,
+      pageSize: 10
     }
   },
   mounted() {
     this.loadTickets();
   },
   computed: {
+    pageTitle() {
+      if (this.viewType === 'global') return 'Gestión Global';
+      if (this.viewType === 'responsable') return 'Requerimientos Asignados';
+      return 'Mis Requerimientos';
+    },
     ...mapState(['tickets', 'loading']),
     pagination() {
       return this.$store.state.ticketsPagination;
@@ -173,15 +191,22 @@ export default {
       this.$store.dispatch('fetchTickets', {
         status: this.filterStatus || undefined,
         search: this.searchQuery || undefined,
-        page: 0
+        view: this.viewType,
+        page: 0,
+        size: this.pageSize
       });
     },
     goToPage(page) {
       this.$store.dispatch('fetchTickets', {
         status: this.filterStatus || undefined,
         search: this.searchQuery || undefined,
-        page
+        view: this.viewType,
+        page,
+        size: this.pageSize
       });
+    },
+    onPageSizeChange() {
+      this.loadTickets();
     },
     onFilterChange() {
       this.loadTickets();
@@ -211,6 +236,13 @@ export default {
         default: return '';
       }
     }
+  },
+  watch: {
+    viewType() {
+      this.searchQuery = '';
+      this.filterStatus = '';
+      this.loadTickets();
+    }
   }
 }
 </script>
@@ -239,7 +271,7 @@ export default {
 .btn-action:hover { background: rgba(0, 49, 98, 0.05); color: var(--primary-hover); }
 .empty-state { text-align: center; padding: 60px !important; color: var(--text-muted); font-style: italic; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 2000; }
-.modal-box { width: 90%; max-width: 900px; max-height: 90vh; overflow: hidden; border: none; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+.modal-box { width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; border: none; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); border-radius: 12px; }
 .text-primary { color: var(--primary); }
 .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }

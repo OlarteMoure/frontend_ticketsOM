@@ -48,9 +48,27 @@
             <textarea v-model="form.description" class="form-control" rows="6" placeholder="Detalle su solicitud aquí..."></textarea>
           </div>
 
+          <!-- Área de adjuntos -->
+          <div class="form-group">
+            <label>Evidencias / Archivos Adjuntos (Opcional)</label>
+            <div class="file-upload-box">
+              <input type="file" multiple @change="onFilesSelected" class="file-input" id="fileInput">
+              <label for="fileInput" class="file-label">
+                <i class="fas fa-cloud-upload-alt"></i>
+                Haz clic o arrastra tus archivos aquí
+              </label>
+            </div>
+            <div class="selected-files" v-if="files.length > 0">
+              <div v-for="(file, index) in files" :key="index" class="file-chip">
+                <i class="fas fa-file"></i> {{ file.name }}
+                <button @click="removeFile(index)" class="btn-remove-file"><i class="fas fa-times"></i></button>
+              </div>
+            </div>
+          </div>
+
           <div class="actions">
-            <button class="btn-primary" @click="save" :disabled="!isValid">
-              <i class="fas fa-save"></i> Crear Ticket
+            <button class="btn-primary" @click="save" :disabled="!isValid || saving">
+              <i class="fas fa-save" v-if="!saving"></i> <i class="fas fa-spinner fa-spin" v-else></i> Crear Ticket
             </button>
           </div>
         </div>
@@ -99,6 +117,8 @@ export default {
         description: '',
         solicitanteId: ''
       },
+      files: [],
+      saving: false,
       showSuccess: false,
       lastId: null
     }
@@ -125,21 +145,43 @@ export default {
     onAreaChange() {
       this.form.subjectId = '';
     },
+    onFilesSelected(event) {
+      const selected = Array.from(event.target.files);
+      this.files = [...this.files, ...selected];
+    },
+    removeFile(index) {
+      this.files.splice(index, 1);
+    },
     async save() {
-      const payload = {
-        title: this.form.title,
-        areaId: this.form.areaId,
-        subjectId: this.form.subjectId,
-        description: this.form.description
-      };
-      
-      if ((this.isAdmin || this.isGestor) && this.form.solicitanteId) {
-        payload.solicitanteId = this.form.solicitanteId;
-      }
+      this.saving = true;
+      try {
+        const ticketDTO = {
+          title: this.form.title,
+          areaId: this.form.areaId,
+          subjectId: this.form.subjectId,
+          description: this.form.description
+        };
+        
+        if ((this.isAdmin || this.isGestor) && this.form.solicitanteId) {
+          ticketDTO.solicitanteId = this.form.solicitanteId;
+        }
 
-      const res = await this.$store.dispatch('createTicket', payload);
-      this.lastId = res.codigo || res.id;
-      this.showSuccess = true;
+        const formData = new FormData();
+        formData.append('ticket', new Blob([JSON.stringify(ticketDTO)], { type: 'application/json' }));
+        
+        this.files.forEach(file => {
+          formData.append('files', file);
+        });
+
+        const res = await this.$store.dispatch('createTicket', formData);
+        this.lastId = res.codigo || res.id;
+        this.showSuccess = true;
+      } catch (e) {
+        console.error("Error creando ticket", e);
+        alert("Ocurrió un error al crear el ticket.");
+      } finally {
+        this.saving = false;
+      }
     }
   }
 }
@@ -161,6 +203,16 @@ export default {
 .info-item { margin-bottom: 15px; }
 .info-item label { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); }
 .info-item p { font-weight: 600; color: var(--text-main); }
+
+/* File Upload Styles */
+.file-upload-box { position: relative; border: 2px dashed var(--border-color); border-radius: 8px; padding: 30px; text-align: center; transition: 0.3s; background: #fafafa; }
+.file-upload-box:hover { border-color: var(--primary); background: #f0f7ff; }
+.file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.file-label { display: flex; flex-direction: column; align-items: center; color: var(--text-muted); pointer-events: none; }
+.file-label i { font-size: 2rem; color: var(--primary); margin-bottom: 10px; }
+.selected-files { margin-top: 15px; display: flex; flex-direction: column; gap: 8px; }
+.file-chip { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: #fff; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; }
+.btn-remove-file { background: none; border: none; color: var(--danger); cursor: pointer; padding: 5px; }
 
 @media (max-width: 600px) {
   .form-row { flex-direction: column; gap: 0; }

@@ -66,7 +66,8 @@ export default {
         'create': 'Nuevo Requerimiento',
         'config': 'Parametrización',
         'reports': 'Mis Requerimientos',
-        'advanced-reports': 'Reportes Globales',
+        'global-tickets': 'Gestión Global',
+        'advanced-reports': 'Reportes Avanzados',
         'statistics': 'Estadísticas'
       };
       return names[this.$route.name] || 'Inicio';

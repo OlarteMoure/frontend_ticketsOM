@@ -33,7 +33,8 @@
           </select>
         </div>
         <div class="filter-item flex-end">
-          <button @click="resetFilters" class="btn-secondary">Limpiar Filtros</button>
+          <button @click="loadReport(0)" class="btn-primary mr-2"><i class="fas fa-search mr-2"></i> Buscar</button>
+          <button @click="resetFilters" class="btn-secondary">Limpiar</button>
         </div>
       </div>
 
@@ -66,12 +67,48 @@
                 </span>
               </td>
             </tr>
-            <tr v-if="filteredTickets.length === 0">
+            <tr v-if="filteredTickets.length === 0 && !loading">
               <td colspan="8" class="empty-state">No hay resultados para los criterios seleccionados.</td>
+            </tr>
+            <tr v-if="loading">
+              <td colspan="8" class="empty-state">
+                <i class="fas fa-spinner fa-spin"></i> Cargando...
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <!-- Paginación -->
+      <div v-if="pagination.totalElements > 0" class="pagination-bar">
+        <div class="pagination-info d-flex align-items-center gap-3">
+          <span>Mostrando {{ paginationStart }}-{{ paginationEnd }} de {{ pagination.totalElements }}</span>
+          <select v-model="pageSize" @change="onPageSizeChange" class="form-control shadow-sm" style="width: 80px; padding: 4px 8px; font-size: 0.85rem; height: 32px;">
+            <option :value="10">10</option>
+            <option :value="20">20</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+          </select>
+        </div>
+        <div class="pagination-controls">
+          <button class="page-btn" :disabled="pagination.page === 0" @click="goToPage(0)">
+            <i class="fas fa-angle-double-left"></i>
+          </button>
+          <button class="page-btn" :disabled="pagination.page === 0" @click="goToPage(pagination.page - 1)">
+            <i class="fas fa-angle-left"></i>
+          </button>
+          <button v-for="p in visiblePages" :key="p" :class="['page-btn', { active: p === pagination.page }]" @click="goToPage(p)">
+            {{ p + 1 }}
+          </button>
+          <button class="page-btn" :disabled="pagination.page >= pagination.totalPages - 1 || pagination.totalPages === 0" @click="goToPage(pagination.page + 1)">
+            <i class="fas fa-angle-right"></i>
+          </button>
+          <button class="page-btn" :disabled="pagination.page >= pagination.totalPages - 1 || pagination.totalPages === 0" @click="goToPage(pagination.totalPages > 0 ? pagination.totalPages - 1 : 0)">
+            <i class="fas fa-angle-double-right"></i>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -91,7 +128,14 @@ export default {
         subjectId: ''
       },
       reportTickets: [],
-      loading: false
+      loading: false,
+      pageSize: 10,
+      pagination: {
+        page: 0,
+        size: 10,
+        totalElements: 0,
+        totalPages: 0
+      }
     }
   },
   computed: {
@@ -102,28 +146,64 @@ export default {
     },
     filteredTickets() {
       return this.reportTickets;
+    },
+    paginationStart() {
+      return this.pagination.page * this.pagination.size + 1;
+    },
+    paginationEnd() {
+      const end = (this.pagination.page + 1) * this.pagination.size;
+      return Math.min(end, this.pagination.totalElements);
+    },
+    visiblePages() {
+      const total = this.pagination.totalPages;
+      const current = this.pagination.page;
+      const pages = [];
+      const range = 2;
+      for (let i = Math.max(0, current - range); i <= Math.min(total - 1, current + range); i++) {
+        pages.push(i);
+      }
+      return pages;
     }
   },
   async mounted() {
-    await this.loadReport();
+    await this.loadReport(0);
   },
   methods: {
-    async loadReport() {
+    async loadReport(page = 0) {
       this.loading = true;
       try {
-        const params = {};
+        const params = {
+          page: page,
+          size: this.pageSize
+        };
         if (this.filters.from) params.from = this.filters.from;
         if (this.filters.to) params.to = this.filters.to;
         if (this.filters.areaId) params.areaId = this.filters.areaId;
         if (this.filters.subjectId) params.subjectId = this.filters.subjectId;
 
         const res = await api.get('/reports/tickets', { params });
-        this.reportTickets = (res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+        const data = (res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+        
+        this.reportTickets = data.content || data || [];
+        if (data.pageable !== undefined) {
+          this.pagination = {
+            page: data.number,
+            size: data.size,
+            totalElements: data.totalElements,
+            totalPages: data.totalPages
+          };
+        }
       } catch (e) {
         console.error('Error cargando reporte:', e);
       } finally {
         this.loading = false;
       }
+    },
+    goToPage(page) {
+      this.loadReport(page);
+    },
+    onPageSizeChange() {
+      this.loadReport(0);
     },
     formatDate(date) {
       return new Date(date).toLocaleDateString('es-CO');
@@ -143,7 +223,7 @@ export default {
     },
     resetFilters() {
       this.filters = { from: '', to: '', areaId: '', subjectId: '' };
-      this.loadReport();
+      this.loadReport(0);
     },
     exportToCSV() {
       const params = new URLSearchParams();
@@ -214,4 +294,50 @@ export default {
 .btn-secondary:hover { background: #f1f5f9; border-color: var(--text-muted); }
 .text-primary { color: var(--primary); }
 .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+
+/* Pagination */
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0 5px;
+  border-top: 1px solid var(--border-color);
+  margin-top: 15px;
+}
+.pagination-info {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.pagination-controls {
+  display: flex;
+  gap: 4px;
+}
+.page-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  transition: all 0.2s;
+}
+.page-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.page-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 </style>
