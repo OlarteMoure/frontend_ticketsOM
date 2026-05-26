@@ -94,7 +94,7 @@ export default {
 
       // 5) Autenticación contra backend local
       axios.post(process.env.VUE_APP_BACKEND_URL + 'auth/authMicrosoft', {
-        email: profile.mail, 
+        email: profile.mail || profile.userPrincipalName, 
         access_token: accessToken
       }).then(response => {
         const data = response.data;

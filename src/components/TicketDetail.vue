@@ -208,7 +208,14 @@ export default {
   },
   methods: {
     formatDate(date) {
-      return new Date(date).toLocaleString('es-CO');
+      if (!date) return '';
+      let d;
+      if (Array.isArray(date)) {
+        d = new Date(date[0], date[1] - 1, date[2], date[3] || 0, date[4] || 0, date[5] || 0);
+      } else {
+        d = new Date(date);
+      }
+      return isNaN(d.getTime()) ? 'N/A' : d.toLocaleString('es-CO');
     },
     async loadMessages() {
       try {

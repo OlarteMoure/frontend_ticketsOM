@@ -57,7 +57,7 @@ async function processBackendLogin(accessToken) {
   // 3) Autenticación contra backend local
   const backendUrl = process.env.VUE_APP_BACKEND_URL;
   const authResponse = await axios.post(backendUrl + 'auth/authMicrosoft', {
-    email: profile.mail,
+    email: profile.mail || profile.userPrincipalName,
     access_token: accessToken
   });
   const data = authResponse.data;
@@ -102,18 +102,25 @@ async function startApp() {
       console.log('[main.js] Redirect procesado. Cuenta:', redirectResponse.account.username);
       msalInstance.setActiveAccount(redirectResponse.account);
 
-      // 3) Obtener access token y hacer todo el login contra el backend
-      try {
-        const tokenResponse = await msalInstance.acquireTokenSilent({
-          account: redirectResponse.account,
-          scopes: ["User.Read"]
-        });
-        if (tokenResponse && tokenResponse.accessToken) {
-          await processBackendLogin(tokenResponse.accessToken);
-          redirectHandled = true;
+      // 3) Usar el token obtenido directamente o intentar obtenerlo de caché
+      let accessToken = redirectResponse.accessToken;
+      if (!accessToken) {
+        try {
+          const tokenResponse = await msalInstance.acquireTokenSilent({
+            account: redirectResponse.account,
+            scopes: ["User.Read"]
+          });
+          accessToken = tokenResponse && tokenResponse.accessToken;
+        } catch (tokenErr) {
+          console.error('[main.js] Error obteniendo token silencioso de respaldo:', tokenErr);
         }
-      } catch (tokenErr) {
-        console.error('[main.js] Error obteniendo token silencioso:', tokenErr);
+      }
+
+      if (accessToken) {
+        await processBackendLogin(accessToken);
+        redirectHandled = true;
+      } else {
+        console.error('[main.js] No se pudo obtener access token para iniciar sesión.');
       }
     } else {
       // Restaurar cuenta activa si ya existe en caché

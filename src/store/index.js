@@ -200,7 +200,7 @@ const store = new Vuex.Store({
       }
     },
     async updateUserRole({ dispatch }, { userId, role }) {
-      await api.patch(`/users/${userId}/role`, null, { params: { role } });
+      await api.patch(`/users/${userId}/role`, { role });
       dispatch('fetchUsers');
     },
     async updateUser({ dispatch }, user) {
